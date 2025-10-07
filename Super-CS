@@ -1,0 +1,69 @@
+// What's really great about this code is his hability to be used in the Firefox Console
+
+// Minimal, anonymized, configurable clone of your script
+(function HighlightPrefixedTokensV1(cfg) {
+  // --- Configuration (change only if needed) ---
+  const prefix       = (cfg && cfg.prefix)       || "Label : ";
+  const excludedValue= (cfg && cfg.excluded)     || "EX01";
+  const markClass    = (cfg && cfg.className)    || "text-flag";
+  const markStyle    = (cfg && cfg.style)        || { backgroundColor: "#ffcccc", border: "1px solid #ff0000" };
+  // ----
+
+  // Escape helpers for safe regex building
+  function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+  // Build regex: capture "prefix + token" BUT NOT when token == excludedValue
+  // Token kept simple: letters/digits/underscore; adjust if you need dashes etc.
+  const pattern = new RegExp(`(${escRe(prefix)}(?!${escRe(excludedValue)}\\b)[\\w\\d]+)`, "gi");
+  const patternCheck = new RegExp(pattern.source, "i"); // non-global check to avoid lastIndex pitfalls
+
+  function highlightTextInNode(node) {
+    const content = node.textContent;
+    if (!content || !content.includes(prefix)) return;
+
+    // Split while keeping matches (capturing group)
+    const parts = content.split(pattern);
+    if (parts.length === 1) return;
+
+    const frag = document.createDocumentFragment();
+
+    parts.forEach(part => {
+      if (!part) return;
+
+      if (patternCheck.test(part)) {
+        const mark = document.createElement("mark");
+        mark.className = markClass;
+        for (const [k, v] of Object.entries(markStyle)) mark.style[k] = v;
+        mark.textContent = part;
+        frag.appendChild(mark);
+      } else {
+        frag.appendChild(document.createTextNode(part));
+      }
+    });
+
+    if (node.parentNode) node.parentNode.replaceChild(frag, node);
+  }
+
+  function processNode(node) {
+    // Skip non-content containers
+    if (node.nodeName === "SCRIPT" || node.nodeName === "STYLE" ||
+        node.nodeName === "NOSCRIPT" || node.nodeName === "TEXTAREA") {
+      return;
+    }
+    if (node.nodeType === Node.TEXT_NODE) {
+      highlightTextInNode(node);
+      return;
+    }
+    // Snapshot childNodes to avoid live collection issues during replacement
+    const kids = Array.from(node.childNodes);
+    kids.forEach(processNode);
+  }
+
+  processNode(document.body);
+})({
+  // --- Usage example (you can override for your context) ---
+  // prefix: "Rame/Véhicule : ",    // <- remets tes valeurs ici si besoin
+  // excluded: "NR01",
+  // className: "vehicle-mismatch",
+  // style: { backgroundColor: "#ffcccc", border: "1px solid #ff0000" }
+});
